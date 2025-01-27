@@ -1,0 +1,429 @@
+Select *
+From financial
+
+
+SELECT COUNT(*)
+FROM financial
+
+ALTER TABLE financial
+ADD con_issue_date DATE;
+
+SELECT COLUMN_NAME
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_NAME = 'financial' AND COLUMN_NAME = 'issue_date';
+
+--Converting the date value in the 'issue_date' column to a valid date format and addding  the values into the column 'con_issue_date'
+
+UPDATE financial
+SET con_issue_date = CASE
+    WHEN issue_date LIKE '__/__/____' THEN TRY_CONVERT(DATE, issue_date, 103) -- DD/MM/YYYY
+    WHEN issue_date LIKE '__-__-____' THEN TRY_CONVERT(DATE, issue_date, 105) -- DD-MM-YYYY
+    WHEN issue_date LIKE '____-__-__' THEN TRY_CONVERT(DATE, issue_date, 120) -- YYYY-MM-DD
+    ELSE NULL
+END;
+
+ALTER TABLE financial
+DROP COLUMN issue_date;
+
+EXEC sp_rename 'financial.con_issue_date', 'issue_date', 'COLUMN';
+ALTER TABLE financial
+ALTER COLUMN issue_date DATE;
+
+--Adding column as 'con_credit_pull_date' to the table
+
+ALTER TABLE financial
+ADD con_last_credit_pull_date DATE;
+
+UPDATE financial
+SET con_last_credit_pull_date = CASE
+    WHEN last_credit_pull_date LIKE '__/__/____' THEN TRY_CONVERT(DATE, last_credit_pull_date, 103) -- DD/MM/YYYY
+    WHEN last_credit_pull_date LIKE '__-__-____' THEN TRY_CONVERT(DATE, last_credit_pull_date, 105) -- DD-MM-YYYY
+    WHEN last_credit_pull_date LIKE '____-__-__' THEN TRY_CONVERT(DATE, last_credit_pull_date, 120) -- YYYY-MM-DD
+    ELSE NULL
+END;
+
+ALTER TABLE financial
+DROP COLUMN last_credit_pull_date;
+
+EXEC sp_rename 'financial.con_last_credit_pull_date', 'last_credit_pull_date', 'COLUMN';
+ALTER TABLE financial
+ALTER COLUMN last_credit_pull_date DATE;
+
+-- Repeat the same steps for the 'next_payment_date' column
+
+ALTER TABLE financial
+ADD con_next_payment_date DATE;
+
+UPDATE financial
+SET con_next_payment_date = CASE
+    WHEN next_payment_date LIKE '__/__/____' THEN TRY_CONVERT(DATE, next_payment_date, 103) -- DD/MM/YYYY
+    WHEN next_payment_date LIKE '__-__-____' THEN TRY_CONVERT(DATE, next_payment_date, 105) -- DD-MM-YYYY
+    WHEN next_payment_date LIKE '____-__-__' THEN TRY_CONVERT(DATE, next_payment_date, 120) -- YYYY-MM-DD
+    ELSE NULL
+END;
+
+ALTER TABLE financial
+DROP COLUMN next_payment_date;
+
+EXEC sp_rename 'financial.con_next_payment_date', 'next_payment_date', 'COLUMN';
+ALTER TABLE financial
+ALTER COLUMN next_payment_date DATE;
+
+
+SELECT *
+FROM financial
+
+--last_payment_date
+
+ALTER  TABLE financial
+ADD con_last_payment_date DATE;
+
+UPDATE financial
+SET con_last_payment_date = CASE
+    WHEN last_payment_date LIKE '__/__/____' THEN TRY_CONVERT(DATE, last_payment_date, 103) -- DD/MM/YYYY
+    WHEN last_payment_date LIKE '__-__-____' THEN TRY_CONVERT(DATE, last_payment_date, 105) -- DD-MM-YYYY
+    WHEN last_payment_date LIKE '____-__-__' THEN TRY_CONVERT(DATE, last_payment_date, 120) -- YYYY-MM-DD
+    ELSE NULL
+END;
+
+
+ALTER TABLE financial
+DROP COLUMN last_payment_date;
+
+EXEC sp_rename 'financial.con_last_payment_date', 'last_payment_date', 'COLUMN';
+ALTER TABLE financial
+ALTER COLUMN last_payment_date DATE;
+
+SELECT *
+FROM financial
+
+--Calculating the total applications recevied
+
+SELECT COUNT(id) AS Total_Loan_Applications
+FROM financial
+
+--Calculating MTD Total Loan Applications
+
+SELECT COUNT(id) AS MTD_Total_Loan_Applications
+FROM financial WHERE MONTH(issue_date) =12 AND YEAR(issue_date) = 2021; --4314
+
+--Calculating PMTD Total Loan Applications
+
+SELECT COUNT(id) AS MTD_Total_Loan_Applications
+FROM financial WHERE MONTH(issue_date) =11 AND YEAR(issue_date) = 2021; --4035
+
+--Calculating the MOM Total Loan Applications
+
+WITH MTD_app AS (
+    SELECT COUNT(id) AS MTD_Total_Loan_Applications
+    FROM financial
+    WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021
+),
+PMTD_app AS (
+    SELECT COUNT(id) AS PMTD_Total_Loan_Applications
+    FROM financial
+    WHERE MONTH(issue_date) = 11 AND YEAR(issue_date) = 2021
+)
+SELECT 
+    ((MTD.MTD_Total_Loan_Applications - PMTD.PMTD_Total_Loan_Applications) / 
+    (PMTD.PMTD_Total_Loan_Applications * 100)) AS MOM_Total_Loan_Applications
+FROM 
+    MTD_app MTD, PMTD_app PMTD;
+
+--Calculating the Total Funded Amount
+
+SELECT SUM(loan_amount) AS Total_Funded_Amount
+FROM financial --435757075
+
+--Calculating the MTD Total Funded Amount
+
+SELECT SUM(loan_amount) AS MTD_Total_Funded_Amount
+FROM financial
+Where MONTH(issue_date) =12 AND YEAR(issue_date) = 2021; --53981425
+
+--Calculating the PMTD Total Funded Amount
+
+SELECT SUM(loan_amount) AS PMTD_Total_Funded_Amount
+FROM financial
+Where MONTH(issue_date) =11 AND YEAR(issue_date) = 2021; --47754825
+
+WITH MTD_funded AS (
+    SELECT SUM(loan_amount) AS MTD_Total_Funded_Amount
+    FROM financial
+    WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021),
+PMTD_funded AS (
+    SELECT SUM(loan_amount) AS PMTD_Total_Funded_Amount
+    FROM financial
+    WHERE MONTH(issue_date) = 11 AND YEAR(issue_date) = 2021)
+
+SELECT 
+    (MTD.MTD_Total_Funded_Amount - PMTD.PMTD_Total_Funded_Amount) / PMTD.PMTD_Total_Funded_Amount AS MOM_Total_Funded_Amount
+FROM 
+    MTD_funded MTD, PMTD_funded PMTD; --0.130386824786815
+
+--Calculating the Total Amount Recevied
+
+SELECT SUM(total_payment) AS Total_Received
+FROM financial  --473070933
+
+--Calculating the MTD Total Amount Received
+SELECT SUM(total_payment) AS MTD_Total_Amount_Received
+FROM financial
+Where MONTH(issue_date) =12 AND YEAR(issue_date) = 2021; --58074380
+
+--Calculating the PMTD Total Amount Received
+
+SELECT SUM(loan_amount) AS PMTD_Total_Amount_Received
+FROM financial
+Where MONTH(issue_date) =11 AND YEAR(issue_date) = 2021;
+
+WITH MTD_funded AS(
+SELECT SUM(loan_amount) AS MTD_Total_Funded_Amount
+FROM financial
+Where MONTH(issue_date) =12 AND YEAR(issue_date) = 2021),
+PMTD_funded AS (
+SELECT SUM(loan_amount) AS PMTD_Total_Funded_Amount
+FROM financial
+Where MONTH(issue_date) =11 AND YEAR(issue_date) = 2021)
+
+SELECT ((MTD.MTD_Total_Funded_Amount - PMTD.PMTD_Total_Funded_Amount)/PMTD.PMTD_Total_Funded_Amount *100) AS MOM_Total_Funded_Amount
+FROM MTD_funded MTD, PMTD_funded PMTD;  --13.0386824786815
+
+--Calculating the Total Amount Received
+
+SELECT SUM(total_payment) AS Total_Amount_Received
+FROM financial --473070933
+
+--Calculating the MTD Total  Amount Received
+
+SELECT SUM(total_payment) AS MTD_Total_Amount_Received
+FROM financial
+Where MONTH(issue_date) =12 AND YEAR(issue_date) = 2021; --58074380
+
+--Calculating the PMTD Total  Amount Received
+
+SELECT SUM(total_payment) AS PMTD_Total_Amount_Received
+FROM financial
+Where MONTH(issue_date) =11 AND YEAR(issue_date) = 2021;  --50132030
+
+WITH MTD_payment AS(
+SELECT SUM(total_payment) AS MTD_Total_Amount_Received
+FROM financial
+Where MONTH(issue_date) =12 AND YEAR(issue_date) = 2021),
+PMTD_payment AS (
+SELECT SUM(total_payment) AS PMTD_Total_Amount_Received
+FROM financial
+Where MONTH(issue_date) =11 AND YEAR(issue_date) = 2021)
+
+SELECT ((MTD.MTD_Total_Amount_Received - PMTD.PMTD_Total_Amount_Received)/PMTD.PMTD_Total_Amount_Received *100) AS MOM_Total_Amount_Received
+FROM MTD_payment MTD, PMTD_payment PMTD;   --15.8428653298101
+
+-- Calculating the Avg Int Rate
+
+SELECT AVG(int_rate)*100 AS Avg_interest_rate FROM financial
+
+--Calculating the MTD Avg Int Rate
+
+SELECT AVG(int_rate)*100 AS MTD_Avg_interest_rate 
+FROM financial
+WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021;  --12.3560408676042
+
+--Calculating the PMTD Avg Int Rate
+
+SELECT AVG(int_rate)*100 AS PMTD_Avg_interest_rate 
+FROM financial
+WHERE MONTH(issue_date) = 11 AND YEAR(issue_date) = 2021; --11.9417175498261
+
+--Calculating theMOM Avg Int Rate
+
+WITH MTD_avg_int AS (
+    SELECT AVG(int_rate) * 100 AS MTD_Avg_interest_rate
+    FROM financial
+    WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021),
+PMTD_avg_int AS (
+    SELECT AVG(int_rate)* 100 AS PMTD_Avg_interest_rate
+    FROM financial
+    WHERE MONTH(issue_date) = 11 AND YEAR(issue_date) = 2021)
+
+((MTD.MTD_Avg_interest_rate - PMTD.PMTD_Avg_interest_rate) / PMTD.PMTD_Avg_interest_rate * 100) AS MOM_Avg_interest_rate
+FROM 
+    MTD_avg_int MTD, 
+    PMTD_avg_int PMTD; --3.46954544896374
+
+--Calculating the Avg Dept To Income Ratio(DTI)
+
+SELECT AVG(dti)* 100 AS MTD_Avg_DTI
+FROM financial
+WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021;
+
+--Calculating the MTD DTI
+
+SELECT AVG(dti)*100 AS MTD_Avg_DTI
+FROM financial
+WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021;  --13.6655377880425
+
+--Calculating the PMTD DTI
+
+SELECT AVG(dti)*100 AS PMTD_Avg_DTI
+FROM financial
+WHERE MONTH(issue_date) = 11 AND YEAR(issue_date) = 2021;  --13.3027335836364
+
+
+--Calculating the MOM DTI
+
+
+WITH MTD_DTI AS (
+SELECT AVG(dti) AS MTD_Avg_DTI
+FROM financial
+WHERE MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021),
+PMTD_DTI AS (
+SELECT AVG(dti) AS PMTD_Avg_DTI
+FROM financial
+WHERE MONTH(issue_date) = 11 AND YEAR(issue_date) = 2021)
+
+SELECT ((MTD.MTD_Avg_DTI - PMTD.PMTD_Avg_DTI)/PMTD.PMTD_Avg_DTI *100) AS MOM_Total_Amount_Received
+FROM MTD_DTI MTD, PMTD_DTI PMTD;   --2.72729061380536
+
+
+--Calcualting the Loan Application Percentage
+
+SELECT (COUNT(CASE WHEN  loan_status='Fully Paid' OR loan_status = 'Current' THEn id END)*100)/
+COUNT(id) AS Good_Loan_Percentage
+FROM financial   --86
+
+--Calculating the Total Good Loan Applications
+
+SELECT COUNT(id) AS Good_Loan_Aplications
+FROM financial
+WHERE loan_status = 'Fully Paid' OR loan_status = 'Current'  --33243
+
+--Calcualting the Good Loan Percentage
+
+SELECT SUM(loan_amount) AS Good_Loan_Funded_Amount
+FROM financial
+WHERE loan_status = 'Fully Paid' OR loan_status= 'Current';  --370224850
+
+
+--Calculating the Goodd Loan Received Good_Loan_Amount_Recevied
+
+SELECT SUM(loan_amount) AS Good_Loan_Funded_Amount_Recevied
+FROM financial
+WHERE loan_status = 'Fully Paid' OR 'loan_status'= 'Current' ;  --351358350
+
+
+--Bad Loan Issued
+--Calculating Bad Loan Percentage
+
+SELECT (COUNT(CASE WHEN  loan_status='Charged Off' Then id END)*100)/
+COUNT(id) AS Good_Loan_Percentage
+FROM financial   --13
+
+--Calculating the total count of Bad Loan Application
+
+SELECT SUM(loan_amount) AS Bad_Loan_Applications
+FROM financial
+WHERE loan_status = 'Charged Off'; --65532225
+
+--Calculating the Bad Loan Funded Amount
+
+SELECT SUM(loan_amount) AS Bad_Loan_Funded_Amount
+FROM financial
+WHERE loan_status = 'Charged Off';  --65532225
+
+--Calculating the count of Loan_Count,Total_Amount_Recevied, Total_Funded_Amount, Interested_Rate,DTI on the basis of the loan_status
+
+SELECT 
+    loan_status,
+    COUNT(id) AS Loan_Count,
+    SUM(total_payment) AS Total_Amount_Received,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    AVG(int_rate * 100) AS Interested_Rate,
+    AVG(dti * 100) AS DTI
+FROM 
+    financial
+GROUP BY 
+    loan_status;
+
+
+-- Calculating MTD_Total_Amount_Received,MTD_Total_Funded_Amount on the basis of loan_status
+
+SELECT
+	loan_status,
+	SUM(total_payment) AS MTD_Total_Amount_Received,
+	SUM(loan_amount) AS MTD_Total_Funded_Amount
+FROM
+	financial
+WHERE
+	MONTH(issue_date) = 12 AND YEAR(issue_date) = 2021
+GROUP BY
+	loan_status;
+
+--Calculating monthly Total_Loan_Applications, Toal_Funded_AMount and Total_Amount_Received
+
+SELECT
+    MONTH(issue_date) AS Month_Number,
+    DATENAME(MONTH, issue_date) AS Month_Name,
+    COUNT(id) AS Total_Loan_Applications,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    SUM(total_payment) AS Total_Amount_Received
+FROM financial
+GROUP BY MONTH(issue_date), DATENAME(MONTH, issue_date)
+ORDER BY MONTH(issue_date);
+
+--Bank Loan Report  | Overveiw -MONTH
+
+SELECT
+	address_state AS State,
+    COUNT(id) AS Total_Loan_Applications,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    SUM(total_payment) AS Total_Amount_Received
+FROM financial
+GROUP BY address_state
+ORDER BY address_state;
+
+--Bank Loan Report  | Overveiw -TERM
+
+SELECT
+	term AS Term,
+    COUNT(id) AS Total_Loan_Applications,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    SUM(total_payment) AS Total_Amount_Received
+FROM financial
+GROUP BY term
+ORDER BY term;
+
+--Bank Loan Report  | Overveiw -EMPLOYEE LENGTH
+
+SELECT
+	emp_length AS Employee_Length,
+    COUNT(id) AS Total_Loan_Applications,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    SUM(total_payment) AS Total_Amount_Received
+FROM financial
+GROUP BY emp_length
+ORDER BY emp_length;
+
+--Bank Loan Report  | Overveiw -Purpose
+
+SELECT
+	purpose AS Purpose_of_Loan,
+    COUNT(id) AS Total_Loan_Applications,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    SUM(total_payment) AS Total_Amount_Received
+FROM financial
+GROUP BY  purpose
+ORDER BY purpose;
+
+--Bank Loan Report  | Overveiw -HOME OWNERSHIP
+
+SELECT
+	home_ownership AS HOME_OWNERSHIP,
+    COUNT(id) AS Total_Loan_Applications,
+    SUM(loan_amount) AS Total_Funded_Amount,
+    SUM(total_payment) AS Total_Amount_Received
+FROM financial
+GROUP BY  home_ownership
+ORDER BY home_ownership;
+
+SELECT * 
+FROM financial;
